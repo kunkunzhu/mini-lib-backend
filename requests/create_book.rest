@@ -1,0 +1,8 @@
+POST http://localhost:3001/api/books
+Content-Type: application/json
+
+{
+    "title": "The Tale of Two Cities",
+    "author": "Charles Dickens",
+    "progress": 3
+}
