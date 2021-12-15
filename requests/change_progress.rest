@@ -1,0 +1,7 @@
+PUT http://localhost:3001/api/books/1
+
+{
+    "title": "This One Wild and Precious Life",
+    "author": "Sarah Wilson",
+    "progress": 3
+}

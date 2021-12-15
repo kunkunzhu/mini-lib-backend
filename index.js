@@ -14,8 +14,11 @@ const requestLogger = (request, response, next) => {
   
 app.use(requestLogger)
 
+app.use(express.static('build'))
+
 /* middleware - allow request from all origins */
 const cors = require('cors')
+const { response } = require('express')
 
 app.use(cors())
 
@@ -55,8 +58,8 @@ let books = [
 
 /* creating a unique ID */
 const generateId = () => {
-    const maxId = notes.length > 0
-      ? Math.max(...notes.map(n => n.id))
+    const maxId = books.length > 0
+      ? Math.max(...books.map(n => n.id))
       : 0
     return maxId + 1
   }
@@ -85,8 +88,33 @@ app.delete('/api/books/:id', (request, response) => {
 })
   
 /* getting all books */
-app.get('/api/books', (request, response) => {
+app.get('/api/books', (response) => {
     response.json(books)
+})
+
+/* change the progress of a book */
+app.put('/api/books/:id', (request, response) => {
+    console.log("HELLO")
+    const body = request.body
+    
+    const book = {
+        title: body.title,
+        author: body.author,
+        progress: body.progress,
+        id: body.id,
+    }
+
+    console.log(book)
+
+    for (let i = 0; i < books.length; i++) {
+        if (books[i].id == id) {
+            books[i] = book;
+        }
+    }
+    
+    books.id = body.progress;
+
+    response.json(book)
 })
 
 /* creating a new book */
@@ -115,7 +143,8 @@ app.post('/api/books', (request, response) => {
     response.json(book)
 })
 
-const unknownEndpoint = (request, response) => {
+
+const unknownEndpoint = (response) => {
     response.status(404).send({ error: 'unknown endpoint' })
 }
   
