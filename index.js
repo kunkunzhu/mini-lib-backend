@@ -1,9 +1,18 @@
 const express = require('express')
 const app = express()
+const cors = require('cors')
 
+require('dotenv').config()
+const Book = require('./models/book')
+
+// MIDDLEWARES
+// (the execution order of middleware is the same as the order that they are loaded into express)
+
+app.use(express.static('build'))
+app.use(cors())
 app.use(express.json())
 
-/* middleware - request logging */
+/* request logging */
 const requestLogger = (request, response, next) => {
     console.log('Method:', request.method)
     console.log('Path:  ', request.path)
@@ -11,146 +20,132 @@ const requestLogger = (request, response, next) => {
     console.log('---')
     next()
 }
+
+/* error handling */
+const errorHandler = (error, request, response, next) => {
+    console.error(error.message)
   
+    if (error.name === 'CastError') {
+        return response.status(400).send({ error: 'malformatted id' })
+    } else if (error.name === 'ValidationError') {
+        return response.status(400).json({ error: error.message })
+    }
+  
+    next(error)
+}
+
 app.use(requestLogger)
 
-app.use(express.static('build'))
-
-/* middleware - allow request from all origins */
-const cors = require('cors')
-const { response } = require('express')
-
-app.use(cors())
-
 /* initial books */
-let books = [
-    {
-        id: 1,
-        title: "This One Wild and Precious Life",
-        author: "Sarah Wilson",
-        progress: 2
-    },
-    {
-        id: 2,
-        title: "User Friendly",
-        author: "Cliff Kuang & Robert Fabricant",
-        progress: 2
-    },
-    {
-        id: 3,
-        title: "Do Not Say We Have Nothing",
-        author: "Madeleine Thien",
-        progress: 3
-    },
-    {
-        id: 4,
-        title: "Little Fires Everywhere",
-        author: "Celeste Ng",
-        progress: 3
-    },
-    {
-        id: 5,
-        title: "The Defining Decade",
-        author: "Meg Jay",
-        progress: 1
-    }
-]
-
-/* creating a unique ID */
-const generateId = () => {
-    const maxId = books.length > 0
-      ? Math.max(...books.map(n => n.id))
-      : 0
-    return maxId + 1
-  }
+// let books = [
+//     {
+//         id: 1,
+//         title: "This One Wild and Precious Life",
+//         author: "Sarah Wilson",
+//         progress: 2
+//     },
+//     {
+//         id: 2,
+//         title: "User Friendly",
+//         author: "Cliff Kuang & Robert Fabricant",
+//         progress: 2
+//     },
+//     {
+//         id: 5,
+//         title: "The Defining Decade",
+//         author: "Meg Jay",
+//         progress: 1
+//     }
+// ]
 
 // API CALLS
 
 /* finding a specific book */
-app.get('/api/books/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const book = books.find(b => b.id === id)
-    response.json(book)
-
-    if (book) {
-        response.json(book)
-    } else {
-        response.status(404).end()
-    }
+app.get('/api/books/:id', (request, response, next) => {
+    Book.findById(request.params.id)
+        .then(book => {
+            if (book) {
+                response.json(book)
+            } else {
+                response.status(404).end()
+            }
+        })
+        .catch(error => next(error))
 })
 
+
 /* deleting a specific book */
-app.delete('/api/books/:id', (request, response) => {
-    const id = Number(request.params.id)
-    books = books.filter(b => b.id !== id)
-  
-    response.status(204).end()
+app.delete('/api/books/:id', (request, response, next) => {
+    Book.findByIdAndRemove(request.params.id)
+        .then(result => {
+            console.log(result)
+            response.status(204).end()
+        })
+        .catch(error => next(error))
 })
   
 /* getting all books */
-app.get('/api/books', (response) => {
+app.get('/api/books', (request, response) => {
     response.json(books)
 })
 
 /* change the progress of a book */
-app.put('/api/books/:id', (request, response) => {
-    console.log("HELLO")
+app.put('/api/books/:id', (request, response, next) => {
     const body = request.body
-    
+  
     const book = {
         title: body.title,
         author: body.author,
         progress: body.progress,
-        id: body.id,
     }
-
-    console.log(book)
-
-    for (let i = 0; i < books.length; i++) {
-        if (books[i].id == id) {
-            books[i] = book;
-        }
-    }
-    
-    books.id = body.progress;
-
-    response.json(book)
+  
+    Book.findByIdAndUpdate(request.params.id, book, { new: true })
+        .then(updatedBook => {
+            response.json(updatedBook)
+        })
+        .catch(error => next(error)
+    )
 })
 
+
 /* creating a new book */
-app.post('/api/books', (request, response) => {
-    console.log(request.body)
+app.post('/api/books', (request, response, next) => {
     const body = request.body
 
-    const book = {
+    for (let i = 0; i < body.length; i++) {
+        if (books[i].title === body.title && 
+            books[i].author === body.author) {
+            return response.status(400).json({ 
+                error: 'this book already exists' 
+            })
+        }
+    }
+
+    const book = new Book({
         title: body.title,
         author: body.author,
         progress: body.progress || 2,
-        id: generateId(),
-    }
+    })
 
-    for (let i = 0; i < books.length; i++) {
-        if (books[i].title === book.title && 
-            books[i].author === book.author) {
-                return response.status(400).json({ 
-                    error: 'this book already exists' 
-                })
-            }
-    }
-
-    books = books.concat(book)
-
-    response.json(book)
+    book
+    // example of promise chaining
+        .save()
+        .then(savedBook => savedBook.toJSON())
+        .then(savedAndFormattedBook => {
+            response.json(savedAndFormattedBook)
+        })
+        .catch(error => next(error))
 })
 
 
-const unknownEndpoint = (response) => {
+const unknownEndpoint = (request, response) => {
     response.status(404).send({ error: 'unknown endpoint' })
 }
   
 app.use(unknownEndpoint)
+app.use(errorHandler)
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
